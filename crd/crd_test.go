@@ -37,6 +37,9 @@ func TestMarshal(t *testing.T) {
 			StorageEncrypted:     true,
 			StorageType:          "gp2",
 			Username:             "dbuser",
+			Tags: map[string]string{
+				"com.example.environment": "dev",
+			},
 		},
 	}
 	j, err := yaml.Marshal(d)

@@ -3,6 +3,8 @@ package rds
 import (
 	"testing"
 
+	//	"github.com/aws/aws-sdk-go-v2/aws"
+	//	"github.com/aws/aws-sdk-go-v2/service/rds"
 	"github.com/sorenmat/k8s-rds/crd"
 
 	"github.com/stretchr/testify/assert"
@@ -26,9 +28,14 @@ func TestConvertSpecToInput(t *testing.T) {
 			Iops:                  1000,
 			BackupRetentionPeriod: &backupRetentionPeriod,
 			Password:              v1.SecretKeySelector{LocalObjectReference: v1.LocalObjectReference{Name: "password"}, Key: "mypassword"},
+			Tags: map[string]string{
+				"com.example.environment": "prod",
+				"com.example.component":   "database",
+			},
 		},
 	}
-	i := convertSpecToInstanceInput(db, "mysubnet", []string{"sg-1234", "sg-4321"}, "mypassword")
+	i := convertSpecToInstanceInput(db, "mysubnet", []string{"sg-1234", "sg-4321"}, "mypassword",
+		map[string]string{"com.example.environment": "dev"})
 	assert.Equal(t, "mydb", *i.DBName)
 	assert.Equal(t, "postgres", *i.Engine)
 	assert.Equal(t, "mypassword", *i.MasterUserPassword)
@@ -65,7 +72,8 @@ func TestConvertSpecToRestoreSnapshotInput(t *testing.T) {
 			Password:              v1.SecretKeySelector{LocalObjectReference: v1.LocalObjectReference{Name: "password"}, Key: "mypassword"},
 		},
 	}
-	restoreSnapshotInput, modifyInstanceInput := convertSpecToRestoreSnapshotInput(db, "mysubnet", []string{"sg-1234", "sg-4321"}, "mypassword")
+	restoreSnapshotInput, modifyInstanceInput := convertSpecToRestoreSnapshotInput(db, "mysubnet", []string{"sg-1234", "sg-4321"}, "mypassword",
+		map[string]string{"com.example.environment": "dev"})
 	assert.Equal(t, "mydb", *restoreSnapshotInput.DBName)
 	assert.Equal(t, "snapshot", *restoreSnapshotInput.DBSnapshotIdentifier)
 	assert.Equal(t, "postgres", *restoreSnapshotInput.Engine)
@@ -80,6 +88,7 @@ func TestConvertSpecToRestoreSnapshotInput(t *testing.T) {
 	assert.Equal(t, "mypassword", *modifyInstanceInput.MasterUserPassword)
 	assert.Equal(t, int64(100), *modifyInstanceInput.AllocatedStorage)
 	assert.Equal(t, int64(10), *modifyInstanceInput.BackupRetentionPeriod)
+	//[]rds.Tag{{Key: aws.String("com.example.environment"), Value: aws.String("dev")}})
 }
 
 func TestConvertSpecToRestoreSnapshotInputNoModify(t *testing.T) {
@@ -99,9 +108,14 @@ func TestConvertSpecToRestoreSnapshotInputNoModify(t *testing.T) {
 			Iops:                  1000,
 			BackupRetentionPeriod: nil,
 			Password:              v1.SecretKeySelector{LocalObjectReference: v1.LocalObjectReference{Name: ""}, Key: ""},
+			Tags: map[string]string{
+				"com.example.environment": "%c",
+				"com.example.component":   "database",
+			},
 		},
 	}
-	restoreSnapshotInput, modifyInstanceInput := convertSpecToRestoreSnapshotInput(db, "mysubnet", []string{"sg-1234", "sg-4321"}, "")
+	restoreSnapshotInput, modifyInstanceInput := convertSpecToRestoreSnapshotInput(db, "mysubnet", []string{"sg-1234", "sg-4321"}, "",
+		map[string]string{"com.example.environment": "dev"})
 	assert.Equal(t, "mydb", *restoreSnapshotInput.DBName)
 	assert.Equal(t, "snapshot", *restoreSnapshotInput.DBSnapshotIdentifier)
 	assert.Equal(t, "postgres", *restoreSnapshotInput.Engine)

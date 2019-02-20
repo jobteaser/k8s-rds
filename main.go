@@ -3,6 +3,7 @@ package main
 import (
 	"fmt"
 	"log"
+	"os"
 	"time"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
@@ -262,6 +263,8 @@ func main() {
 	if err != nil {
 		log.Fatal("unable to create a client for EC2 ", err)
 	}
+
+	defaultTags, _ := rds.ParseTagsFromString(os.Getenv("DEFAULT_TAGS"))
 	// Create a CRD client interface
 	crdclient := client.CrdClient(crdcs, scheme, "")
 	log.Println("Watching for database changes...")
@@ -273,7 +276,7 @@ func main() {
 			AddFunc: func(obj interface{}) {
 				db := obj.(*crd.Database)
 				client := client.CrdClient(crdcs, scheme, db.Namespace) // add the database namespace to the client
-				err = handleCreateDatabase(db, ec2client, client)
+				err = handleCreateDatabase(db, ec2client, client, defaultTags)
 				if err != nil {
 					log.Printf("database creation failed: %v", err)
 					err := updateStatus(db, crd.DatabaseStatus{Message: fmt.Sprintf("%v", err), State: Failed}, client)
@@ -319,7 +322,7 @@ func main() {
 	select {}
 }
 
-func handleCreateDatabase(db *crd.Database, ec2client *ec2.EC2, crdclient *client.Crdclient) error {
+func handleCreateDatabase(db *crd.Database, ec2client *ec2.EC2, crdclient *client.Crdclient, defaultTags map[string]string) error {
 	if db.Status.State == "Created" {
 		log.Printf("database %v already created, skipping\n", db.Name)
 		return nil
@@ -363,7 +366,7 @@ func handleCreateDatabase(db *crd.Database, ec2client *ec2.EC2, crdclient *clien
 			return err
 		}
 	}
-	hostname, err := r.CreateDatabase(db, pw)
+	hostname, err := r.CreateDatabase(db, pw, defaultTags)
 	if err != nil {
 		return err
 	}

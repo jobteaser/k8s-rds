@@ -68,6 +68,7 @@ type DatabaseSpec struct {
 	StorageType           string               `json:"storagetype,omitempty"`
 	Iops                  int64                `json:"iops,omitempty"`
 	BackupRetentionPeriod *int64               `json:"backupretentionperiod,omitempty"` // between 0 and 35, zero means disable
+	Tags                  map[string]string    `json:"tags"`                            // tags to forward with "%x" template capabilities
 }
 
 type DatabaseStatus struct {

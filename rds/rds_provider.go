@@ -20,17 +20,17 @@ type RDS struct {
 
 // CreateDatabase creates a database from the CRD database object, is also ensures that the correct
 // subnets are created for the database so we can access it
-func (r *RDS) CreateDatabase(db *crd.Database, password string) (string, error) {
+func (r *RDS) CreateDatabase(db *crd.Database, password string, defaultTags map[string]string) (string, error) {
 	if db.Spec.DBSnapshotIdentifier == "" {
-		return r.CreateDatabaseInstance(db, password)
+		return r.CreateDatabaseInstance(db, password, defaultTags)
 	} else {
-		return r.RestoreDatabaseFromSnapshot(db, password)
+		return r.RestoreDatabaseFromSnapshot(db, password, defaultTags)
 	}
 }
 
 // CreateDatabaseInstance creates a database from the CRD database object, is also ensures that the correct
 // subnets are created for the database so we can access it
-func (r *RDS) CreateDatabaseInstance(db *crd.Database, password string) (string, error) {
+func (r *RDS) CreateDatabaseInstance(db *crd.Database, password string, defaultTags map[string]string) (string, error) {
 	var err error
 	dbSubnetGroupName := db.Spec.DBSubnetGroupName
 	if dbSubnetGroupName == "" {
@@ -42,7 +42,7 @@ func (r *RDS) CreateDatabaseInstance(db *crd.Database, password string) (string,
 		}
 	}
 
-	input := convertSpecToInstanceInput(db, dbSubnetGroupName, r.SecurityGroups, password)
+	input := convertSpecToInstanceInput(db, dbSubnetGroupName, r.SecurityGroups, password, defaultTags)
 
 	// search for the instance
 	log.Printf("Trying to find db instance %v\n", *input.DBInstanceIdentifier)
@@ -77,7 +77,7 @@ func (r *RDS) CreateDatabaseInstance(db *crd.Database, password string) (string,
 
 // RestoreDatabaseFromSnapshot creates a database instance from a snapshot using the CRD database object, is also ensures that the correct
 // subnets are created for the database so we can access it
-func (r *RDS) RestoreDatabaseFromSnapshot(db *crd.Database, password string) (string, error) {
+func (r *RDS) RestoreDatabaseFromSnapshot(db *crd.Database, password string, defaultTags map[string]string) (string, error) {
 	var err error
 	dbSubnetGroupName := db.Spec.DBSubnetGroupName
 	if dbSubnetGroupName == "" {
@@ -89,7 +89,7 @@ func (r *RDS) RestoreDatabaseFromSnapshot(db *crd.Database, password string) (st
 		}
 	}
 
-	restoreSnapshotInput, modifyInstanceInput := convertSpecToRestoreSnapshotInput(db, dbSubnetGroupName, r.SecurityGroups, password)
+	restoreSnapshotInput, modifyInstanceInput := convertSpecToRestoreSnapshotInput(db, dbSubnetGroupName, r.SecurityGroups, password, defaultTags)
 
 	// search for the instance
 	log.Printf("Trying to find db instance %v\n", *restoreSnapshotInput.DBInstanceIdentifier)
@@ -229,7 +229,8 @@ func (r *RDS) rdsclient() *rds.RDS {
 	return rds.New(r.EC2.Config)
 }
 
-func convertSpecToInstanceInput(v *crd.Database, dbSubnetGroupName string, securityGroups []string, password string) *rds.CreateDBInstanceInput {
+func convertSpecToInstanceInput(v *crd.Database, dbSubnetGroupName string, securityGroups []string, password string, defaultTags map[string]string) *rds.CreateDBInstanceInput {
+	awsTags, _ := GetAwsTags(v.Spec.Tags, defaultTags, v.Namespace, v.Name)
 	input := &rds.CreateDBInstanceInput{
 		DBName:               aws.String(v.Spec.DBName),
 		AllocatedStorage:     aws.Int64(v.Spec.Size),
@@ -243,6 +244,7 @@ func convertSpecToInstanceInput(v *crd.Database, dbSubnetGroupName string, secur
 		PubliclyAccessible:   aws.Bool(v.Spec.PubliclyAccessible),
 		MultiAZ:              aws.Bool(v.Spec.MultiAZ),
 		StorageEncrypted:     aws.Bool(v.Spec.StorageEncrypted),
+		Tags:                 awsTags,
 	}
 	if v.Spec.StorageType != "" {
 		input.StorageType = aws.String(v.Spec.StorageType)
@@ -259,7 +261,8 @@ func convertSpecToInstanceInput(v *crd.Database, dbSubnetGroupName string, secur
 	return input
 }
 
-func convertSpecToRestoreSnapshotInput(v *crd.Database, dbSubnetGroupName string, securityGroups []string, password string) (*rds.RestoreDBInstanceFromDBSnapshotInput, *rds.ModifyDBInstanceInput) {
+func convertSpecToRestoreSnapshotInput(v *crd.Database, dbSubnetGroupName string, securityGroups []string, password string, defaultTags map[string]string) (*rds.RestoreDBInstanceFromDBSnapshotInput, *rds.ModifyDBInstanceInput) {
+	awsTags, _ := GetAwsTags(v.Spec.Tags, defaultTags, v.Namespace, v.Name)
 	restoreSnapshotInput := &rds.RestoreDBInstanceFromDBSnapshotInput{
 		DBName:               aws.String(v.Spec.DBName),
 		DBInstanceClass:      aws.String(v.Spec.Class),
@@ -270,6 +273,7 @@ func convertSpecToRestoreSnapshotInput(v *crd.Database, dbSubnetGroupName string
 		VpcSecurityGroupIds:  securityGroups,
 		PubliclyAccessible:   aws.Bool(v.Spec.PubliclyAccessible),
 		MultiAZ:              aws.Bool(v.Spec.MultiAZ),
+		Tags:                 awsTags,
 	}
 	if v.Spec.StorageType != "" {
 		restoreSnapshotInput.StorageType = aws.String(v.Spec.StorageType)
