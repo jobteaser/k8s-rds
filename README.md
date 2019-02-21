@@ -67,6 +67,8 @@ spec:
   iops: 1000 # number of iops
   multiaz: true # multi AZ support
   storagetype: gp2 # type of the underlying storage
+  tags:
+    com.example.environment: dev
 ```
 
 Note that `backupretentionperiod` may be:
@@ -132,6 +134,15 @@ And on the AWS RDS page
 ![subnets](docs/subnet.png "DB instance subnets")
 
 ![instances](docs/instances.png "DB instance")
+
+### Tagging
+You may provide tags in the resource as a set of key values specified inside of spec `tags` (see yaml sample)
+
+You may also provide defaults tags (with higher priority than the spec ones) with the `DEFAULT_TAGS` environment variable as a json marshalled string:
+
+```
+DEFAULT_TAGS='{ "com.example.environment": "dev" }'
+```
 
 # TODO
 
